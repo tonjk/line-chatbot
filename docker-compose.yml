@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    image: line-chatbot:latest
+    container_name: line-chatbot-app
+    ports:
+      - "8080:8080"
+    volumes:
+      - uploads_data:/usr/src/app/uploads # stored in Docker volume
+    env_file:
+      - .env
+    command: python main.py
+volumes:
+  uploads_data:
+    driver: local  
