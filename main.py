@@ -1,7 +1,12 @@
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
-from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage, ImageMessage, FlexMessage, PushMessageRequest
-from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent
+# from linebot.v3.messaging import Configuration, ApiClient, MessagingApi, ReplyMessageRequest, TextMessage, ImageMessage, FlexMessage, PushMessageRequest
+from linebot.v3.messaging import (
+    Configuration, ApiClient, MessagingApi, 
+    ReplyMessageRequest, TextMessage, TemplateMessage,
+    ButtonsTemplate, PostbackAction, DatetimePickerAction
+)
+from linebot.v3.webhooks import MessageEvent, TextMessageContent, ImageMessageContent, PostbackEvent
 from flask import Flask, request, abort, jsonify
 import requests
 import os
@@ -75,19 +80,69 @@ def callback():
 def handle_message(event):
     user_message = event.message.text
     user_id = event.source.user_id
-    response = CHAT(user_message, user_id)
-    # print("==="*20)
-    # print("Response:", response)
-    # print("==="*20)
-    
-    text_message = TextMessage(text=response)
-    with ApiClient(configuration) as api_client:
-        line_bot_api = MessagingApi(api_client)
-        # # get user name
-        # user_profile = line_bot_api.get_profile(user_id)
-        # user_name = user_profile.display_name
-        line_bot_api.reply_message_with_http_info(ReplyMessageRequest(reply_token=event.reply_token, messages=[text_message]))
+    print(f"Received message from {user_id}: {user_message}", flush=True)
+    if user_message.lower() == "set birthday":
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
             
+            # Create a Date Picker Template
+            date_picker = TemplateMessage(
+                alt_text="Please set your birthday",
+                template=ButtonsTemplate(
+                    text="When is your birthday?",
+                    actions=[
+                        DatetimePickerAction(
+                            label="Select Date",
+                            data="action=set_birthday",
+                            mode="date",
+                            initial="2000-01-01",
+                            max="2025-12-31",
+                            min="1900-01-01"
+                        )
+                    ]
+                )
+            )
+            
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[date_picker]
+                )
+            )
+    else:
+        response = CHAT(user_message, user_id)
+        # print("==="*20)
+        # print("Response:", response)
+        # print("==="*20)
+        
+        text_message = TextMessage(text=response)
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            # # get user name
+            # user_profile = line_bot_api.get_profile(user_id)
+            # user_name = user_profile.display_name
+            line_bot_api.reply_message_with_http_info(ReplyMessageRequest(reply_token=event.reply_token, messages=[text_message]))
+
+
+# 2. Capture the Date Result
+@handler.add(PostbackEvent)
+def handle_postback(event):
+    if event.postback.data == "action=set_birthday":
+        birthdate = event.postback.params['date']
+        
+        # Here you would typically save 'birthdate' to your database
+        # linked to event.source.user_id
+        
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.reply_message(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[TextMessage(text=f"Got it! Your birthday is saved as: {birthdate}")]
+                )
+            )
+
+
 # Dictionary to track user's image batches
 user_image_batches = defaultdict(list)
 user_timers = {}
